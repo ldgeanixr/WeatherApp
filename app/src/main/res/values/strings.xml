@@ -1,0 +1,5 @@
+<resources>
+    <string name="google_map_api_key">AIzaSyDMFDTRNyPPVrWePHIiIGq6b2-hd90AmIc</string>
+    <string name="open_weather_api_key">83515b4790a7f7af472dd3fd2c38636f</string>
+    <string name="app_name">GoogleMapApi</string>
+</resources>

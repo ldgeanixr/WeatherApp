@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.example.googlemapapi.MainActivity">
+
+    <fragment
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:id="@+id/map"
+        tools:context=".MainActivity"
+        android:name="com.google.android.gms.maps.SupportMapFragment" />
+
+
+    <RelativeLayout
+        android:id="@+id/search_rl"
+        android:background="@drawable/white_border"
+        android:elevation="10dp"
+        android:layout_marginRight="10dp"
+        android:layout_marginLeft="10dp"
+        android:layout_marginTop="10dp"
+        android:layout_width="match_parent"
+        android:layout_height="50dp">
+
+        <ImageView
+            android:id="@+id/search_icon"
+            android:layout_marginLeft="10dp"
+            android:src="@drawable/ic_search"
+            android:layout_centerVertical="true"
+            android:layout_width="25dp"
+            android:layout_height="25dp" />
+
+        <EditText
+            android:inputType="text"
+            android:imeOptions="actionSearch"
+            android:hint="Enter City Name"
+            android:id="@+id/serch_et"
+            android:textColor="#000"
+            android:layout_centerVertical="true"
+            android:textSize="15sp"
+            android:layout_toRightOf="@id/search_icon"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </RelativeLayout>
+
+</RelativeLayout>
