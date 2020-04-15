@@ -1,4 +1,4 @@
-package com.example.googlemapapi.NetworkRequests;
+package com.example.googlemapapi.NetworkRequests.pojo;
 
 import com.google.gson.annotations.SerializedName;
 

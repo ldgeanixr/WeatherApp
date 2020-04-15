@@ -6,7 +6,6 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -22,10 +21,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.googlemapapi.NetworkRequests.OpenWeatherClient;
-import com.example.googlemapapi.NetworkRequests.WeatherInfo;
+import com.example.googlemapapi.NetworkRequests.pojo.WeatherInfo;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -58,6 +56,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private boolean locationPermissionGranted;
     private Retrofit retrofit;
     private EditText searchText;
+    private ArrayList<Marker> markers;
 
     private static final String FINE_LOCATION = Manifest.permission.ACCESS_FINE_LOCATION;
     private static final String COARSE_LOCATION = Manifest.permission.ACCESS_COARSE_LOCATION;
@@ -73,6 +72,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         setContentView(R.layout.activity_main);
 
         searchText = findViewById(R.id.serch_et);
+        markers = new ArrayList<>();
 
         initSearchEditText();
 
@@ -103,6 +103,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 return false;
             }
         });
+
+
     }
 
     private void findRequestedLocation(){
@@ -153,19 +155,55 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         gMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
             @Override
             public boolean onMarkerClick(Marker marker) {
+                marker.showInfoWindow();
                 marker.remove();
                 return true;
             }
         });
     }
 
-    private void getTemperature(double lat, double lon) {
+    private void addMarker(WeatherInfo info, LatLng latLng){
+        int height = 130;
+        int width = 130;
+        String icon = info.getWeather().getIcon();
+        int iconId = getResources().getIdentifier(icon , "drawable", getPackageName());
+        Bitmap b = BitmapFactory.decodeResource(getResources(), iconId);
+        Bitmap smallMarker = Bitmap.createScaledBitmap(b, width, height, false);
+        BitmapDescriptor smallMarkerIcon = BitmapDescriptorFactory.fromBitmap(smallMarker);
+
+        int temp = info.getMain().getTemp().intValue();
+
+        MarkerOptions markerOptions = new MarkerOptions()
+                .icon(smallMarkerIcon)
+                .title(""+temp+"°C")
+                .snippet(info.getWeather().getDescription())
+                .position(latLng);
+
+        Marker marker = gMap.addMarker(markerOptions);
+        gMap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
+
+            @Override
+            public void onInfoWindowClick(Marker marker) {
+                marker.remove();
+
+            }
+        });
+        markers.add(marker);
+        marker.showInfoWindow();
+    }
+
+    private void getTemperature(final double lat, final double lon) {
         OpenWeatherClient client = retrofit.create(OpenWeatherClient.class);
         Call<WeatherInfo> call = client.weatherInfoLatLon(lat, lon, APP_ID, UNIT_CELSIUS);
+
+
         call.enqueue(new Callback<WeatherInfo>() {
+
             @Override
             public void onResponse(Call<WeatherInfo> call, Response<WeatherInfo> response) {
+                LatLng latLng = new LatLng(lat, lon);
                 WeatherInfo info = response.body();
+                addMarker(info, latLng);
                 double temp = info.getMain().getTemp();
                 Toast.makeText(MainActivity.this, "Temperature: " + temp + "°C", Toast.LENGTH_SHORT).show();
             }
@@ -210,18 +248,18 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         BitmapDescriptor icon = BitmapDescriptorFactory.fromResource(R.drawable.weather_icon_simple);
 
 
-        int height = 100;
-        int width = 100;
-        Bitmap b = BitmapFactory.decodeResource(getResources(), R.drawable.weather_icon_simple);
-        Bitmap smallMarker = Bitmap.createScaledBitmap(b, width, height, false);
-        BitmapDescriptor smallMarkerIcon = BitmapDescriptorFactory.fromBitmap(smallMarker);
-
-        MarkerOptions markerOptions = new MarkerOptions()
-                .icon(smallMarkerIcon)
-                .title(getCityNameFromLatLng(latLng))
-                .position(latLng);
-
-        gMap.addMarker(markerOptions);
+//        int height = 100;
+//        int width = 100;
+//        Bitmap b = BitmapFactory.decodeResource(getResources(), R.drawable.weather_icon_simple);
+//        Bitmap smallMarker = Bitmap.createScaledBitmap(b, width, height, false);
+//        BitmapDescriptor smallMarkerIcon = BitmapDescriptorFactory.fromBitmap(smallMarker);
+//
+//        MarkerOptions markerOptions = new MarkerOptions()
+//                .icon(smallMarkerIcon)
+//                .title(getCityNameFromLatLng(latLng))
+//                .position(latLng);
+//
+//        gMap.addMarker(markerOptions);
     }
 
 
@@ -293,6 +331,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void initializeMap() {
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
         mapFragment.getMapAsync(MainActivity.this);
+
 
     }
 }

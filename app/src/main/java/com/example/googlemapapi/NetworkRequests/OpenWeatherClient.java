@@ -1,10 +1,9 @@
 package com.example.googlemapapi.NetworkRequests;
 
-import com.google.android.gms.maps.model.LatLng;
+import com.example.googlemapapi.NetworkRequests.pojo.WeatherInfo;
 
 import retrofit2.Call;
 import retrofit2.http.GET;
-import retrofit2.http.Path;
 import retrofit2.http.Query;
 
 public interface OpenWeatherClient {
