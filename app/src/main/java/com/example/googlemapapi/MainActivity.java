@@ -6,17 +6,24 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -86,7 +93,50 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
 
 
+        final Handler mHandler = new Handler();
 
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                makeRequestsForMarkers();
+                mHandler.postDelayed(this, 60000);
+            }
+        };
+
+        mHandler.post(runnable);
+
+
+
+    }
+
+    private void makeRequestsForMarkers() {
+
+        OpenWeatherClient client = retrofit.create(OpenWeatherClient.class);
+
+        for (final Marker marker: markers){
+            double lat = marker.getPosition().latitude;
+            double lon = marker.getPosition().longitude;
+            Call<WeatherInfo> call = client.weatherInfoLatLon(lat, lon, APP_ID, UNIT_CELSIUS);
+            call.enqueue(new Callback<WeatherInfo>() {
+                @Override
+                public void onResponse(Call<WeatherInfo> call, Response<WeatherInfo> response) {
+                    WeatherInfo info = response.body();
+                    long temp = Math.round(info.getMain().getTemp());
+                    marker.setSnippet(temp + "°C \n " + info.getWeather().getDescription());
+                    marker.setIcon(getBitmapFromIcon(info.getWeather().getIcon()));
+//                    Toast.makeText(MainActivity.this, marker.getTitle() + " - " + temp + "°C", Toast.LENGTH_SHORT).show();
+
+                }
+
+                @Override
+                public void onFailure(Call<WeatherInfo> call, Throwable t) {
+                    Toast.makeText(MainActivity.this, "Error in making request", Toast.LENGTH_SHORT).show();
+                }
+            });
+
+        }
+
+        Toast.makeText(MainActivity.this, "Everything Updated!", Toast.LENGTH_SHORT).show();
 
     }
 
@@ -156,27 +206,53 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public boolean onMarkerClick(Marker marker) {
                 marker.showInfoWindow();
-                marker.remove();
                 return true;
+            }
+        });
+
+        gMap.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter() {
+
+            @Override
+            public View getInfoWindow(Marker arg0) {
+                return null;
+            }
+
+            @Override
+            public View getInfoContents(Marker marker) {
+                Context mContext = MainActivity.this;
+                LinearLayout info = new LinearLayout(mContext);
+                info.setOrientation(LinearLayout.VERTICAL);
+
+                TextView title = new TextView(mContext);
+                title.setTextColor(Color.BLACK);
+                title.setGravity(Gravity.CENTER);
+                title.setTypeface(null, Typeface.BOLD);
+                title.setText(marker.getTitle());
+
+                TextView snippet = new TextView(mContext);
+                snippet.setTextColor(Color.GRAY);
+                snippet.setGravity(Gravity.CENTER);
+                snippet.setText(marker.getSnippet());
+
+                info.addView(title);
+                info.addView(snippet);
+
+                return info;
             }
         });
     }
 
     private void addMarker(WeatherInfo info, LatLng latLng){
-        int height = 130;
-        int width = 130;
+
         String icon = info.getWeather().getIcon();
-        int iconId = getResources().getIdentifier(icon , "drawable", getPackageName());
-        Bitmap b = BitmapFactory.decodeResource(getResources(), iconId);
-        Bitmap smallMarker = Bitmap.createScaledBitmap(b, width, height, false);
-        BitmapDescriptor smallMarkerIcon = BitmapDescriptorFactory.fromBitmap(smallMarker);
+        BitmapDescriptor smallMarkerIcon = getBitmapFromIcon(icon);
 
         int temp = info.getMain().getTemp().intValue();
 
         MarkerOptions markerOptions = new MarkerOptions()
                 .icon(smallMarkerIcon)
-                .title(""+temp+"°C")
-                .snippet(info.getWeather().getDescription())
+                .title(getCityNameFromLatLng(latLng))
+                .snippet(temp+"°C \n" + info.getWeather().getDescription())
                 .position(latLng);
 
         Marker marker = gMap.addMarker(markerOptions);
@@ -184,12 +260,21 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             @Override
             public void onInfoWindowClick(Marker marker) {
+                markers.remove(marker);
                 marker.remove();
-
             }
         });
         markers.add(marker);
         marker.showInfoWindow();
+    }
+
+    private BitmapDescriptor getBitmapFromIcon(String icon) {
+        int height = 160;
+        int width = 160;
+        int iconId = getResources().getIdentifier(icon , "drawable", getPackageName());
+        Bitmap b = BitmapFactory.decodeResource(getResources(), iconId);
+        Bitmap smallMarker = Bitmap.createScaledBitmap(b, width, height, false);
+        return BitmapDescriptorFactory.fromBitmap(smallMarker);
     }
 
     private void getTemperature(final double lat, final double lon) {
@@ -278,8 +363,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (addresses.size() > 0){
             name = addresses.get(0).getLocality();
         }
+        Log.d(TAG, "getCityNameFromLatLng: " + name);
 
-        return name;
+        return name == null ? "Unknown" : name;
 
     }
 
