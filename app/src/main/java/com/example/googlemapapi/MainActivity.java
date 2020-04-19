@@ -6,7 +6,10 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import android.Manifest;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -28,7 +31,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.googlemapapi.NetworkRequests.OpenWeatherClient;
+import com.example.googlemapapi.NetworkRequests.pojo.MainObject;
 import com.example.googlemapapi.NetworkRequests.pojo.WeatherInfo;
+import com.example.googlemapapi.NetworkRequests.pojo.WeatherObject;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -64,6 +69,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Retrofit retrofit;
     private EditText searchText;
     private ArrayList<Marker> markers;
+    private BroadcastReceiver receiver;
 
     private static final String FINE_LOCATION = Manifest.permission.ACCESS_FINE_LOCATION;
     private static final String COARSE_LOCATION = Manifest.permission.ACCESS_COARSE_LOCATION;
@@ -72,6 +78,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private static final String BASE_URL = "https://api.openweathermap.org/";
     private static final String APP_ID = "83515b4790a7f7af472dd3fd2c38636f";
     private static final String UNIT_CELSIUS = "metric";
+    private static final int UPDATE_TIME = 1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,6 +92,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         initRetrofit();
 
+        initBroadcastReceiver();
+
 
         getLocationPermission();
 
@@ -92,51 +101,100 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             getDeviceLocation();
         }
 
+        infoUpdateInterval(UPDATE_TIME);
 
+
+    }
+
+    private void infoUpdateInterval(final int min) {
         final Handler mHandler = new Handler();
 
         Runnable runnable = new Runnable() {
             @Override
             public void run() {
                 makeRequestsForMarkers();
-                mHandler.postDelayed(this, 60000);
+                mHandler.postDelayed(this, min * 60000);
             }
         };
 
         mHandler.post(runnable);
+    }
 
+    private void initBroadcastReceiver() {
 
+        receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                Bundle extras = intent.getExtras();
+                String name = extras.getString("city");
+                String description = extras.getString("msg");
+                LatLng latLng = getLatLngOfCity(name);
+                setAlertMarker(latLng, description);
+            }
+        };
+        IntentFilter filter = new IntentFilter();
+        filter.addAction("my.action.fbservice");
 
+        this.registerReceiver(receiver, filter);
+
+    }
+
+    public void setAlertMarker(final LatLng latLng, final String description){
+        OpenWeatherClient client = retrofit.create(OpenWeatherClient.class);
+        double lat = latLng.latitude;
+        double lon = latLng.longitude;
+        Call<WeatherInfo> call = client.weatherInfoLatLon(lat, lon, APP_ID, UNIT_CELSIUS);
+
+        call.enqueue(new Callback<WeatherInfo>() {
+
+            @Override
+            public void onResponse(Call<WeatherInfo> call, Response<WeatherInfo> response) {
+                WeatherInfo info = response.body();
+                double temp = info.getMain().getTemp();
+                info.getWeather().setIcon("fb_img");
+                info.getWeather().setDescription(description);
+                addMarker(info, latLng);
+                moveCamera(latLng, ZOOM_DEFAULT);
+//                Toast.makeText(MainActivity.this, "Temperature: " + temp + "°C", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onFailure(Call<WeatherInfo> call, Throwable t) {
+                Toast.makeText(MainActivity.this, "Error in making request", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void makeRequestsForMarkers() {
 
         OpenWeatherClient client = retrofit.create(OpenWeatherClient.class);
 
-        for (final Marker marker: markers){
-            double lat = marker.getPosition().latitude;
-            double lon = marker.getPosition().longitude;
-            Call<WeatherInfo> call = client.weatherInfoLatLon(lat, lon, APP_ID, UNIT_CELSIUS);
-            call.enqueue(new Callback<WeatherInfo>() {
-                @Override
-                public void onResponse(Call<WeatherInfo> call, Response<WeatherInfo> response) {
-                    WeatherInfo info = response.body();
-                    long temp = Math.round(info.getMain().getTemp());
-                    marker.setSnippet(temp + "°C \n " + info.getWeather().getDescription());
-                    marker.setIcon(getBitmapFromIcon(info.getWeather().getIcon()));
-//                    Toast.makeText(MainActivity.this, marker.getTitle() + " - " + temp + "°C", Toast.LENGTH_SHORT).show();
+        if (!markers.isEmpty()){
+            for (final Marker marker: markers){
+                double lat = marker.getPosition().latitude;
+                double lon = marker.getPosition().longitude;
+                Call<WeatherInfo> call = client.weatherInfoLatLon(lat, lon, APP_ID, UNIT_CELSIUS);
+                call.enqueue(new Callback<WeatherInfo>() {
+                    @Override
+                    public void onResponse(Call<WeatherInfo> call, Response<WeatherInfo> response) {
+                        WeatherInfo info = response.body();
+                        long temp = Math.round(info.getMain().getTemp());
+                        marker.setSnippet(temp + "°C \n " + info.getWeather().getDescription());
+                        marker.setIcon(getBitmapFromIcon(info.getWeather().getIcon()));
 
-                }
+                    }
 
-                @Override
-                public void onFailure(Call<WeatherInfo> call, Throwable t) {
-                    Toast.makeText(MainActivity.this, "Error in making request", Toast.LENGTH_SHORT).show();
-                }
-            });
+                    @Override
+                    public void onFailure(Call<WeatherInfo> call, Throwable t) {
+                        Toast.makeText(MainActivity.this, "Error in making request", Toast.LENGTH_SHORT).show();
+                    }
+                });
 
+            }
+
+            Toast.makeText(MainActivity.this, "Info Updated!", Toast.LENGTH_SHORT).show();
         }
 
-        Toast.makeText(MainActivity.this, "Everything Updated!", Toast.LENGTH_SHORT).show();
 
     }
 
@@ -145,8 +203,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public boolean onEditorAction(TextView textView, int i, KeyEvent keyEvent) {
                 if (i == EditorInfo.IME_ACTION_SEARCH){
-
-                    findRequestedLocation();
+                    String query = searchText.getText().toString();
+                    findRequestedLocation(query);
 
                     return true;
                 }
@@ -157,11 +215,28 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     }
 
-    private void findRequestedLocation(){
+    private void findRequestedLocation(String query){
         Log.d(TAG, "findRequestedLocation: Finding your city from your request");
 
-        String query = searchText.getText().toString();
 
+
+        LatLng latLng = getLatLngOfCity(query);
+
+        if (latLng!=null){
+
+            double lat =  latLng.latitude;
+            double lon =  latLng.longitude;
+
+            moveCamera(new LatLng(lat, lon), ZOOM_DEFAULT);
+            getTemperature(lat, lon);
+
+            searchText.clearFocus();
+            searchText.onEditorAction(EditorInfo.IME_ACTION_DONE);
+        }
+    }
+
+
+    public LatLng getLatLngOfCity(String query){
         Geocoder geocoder = new Geocoder(this);
         List<Address> list = new ArrayList<>();
         try {
@@ -175,12 +250,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             double lat =  address.getLatitude();
             double lon =  address.getLongitude();
 
-            moveCamera(new LatLng(lat, lon), ZOOM_DEFAULT);
-            getTemperature(lat, lon);
-
-            searchText.clearFocus();
-            searchText.onEditorAction(EditorInfo.IME_ACTION_DONE);
+            return new LatLng(lat, lon);
         }
+
+        return null;
     }
 
     private void initRetrofit() {
@@ -245,6 +318,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void addMarker(WeatherInfo info, LatLng latLng){
 
         String icon = info.getWeather().getIcon();
+        Log.d(TAG, "addMarker: icon name is " + icon);
         BitmapDescriptor smallMarkerIcon = getBitmapFromIcon(icon);
 
         int temp = info.getMain().getTemp().intValue();
@@ -289,8 +363,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 LatLng latLng = new LatLng(lat, lon);
                 WeatherInfo info = response.body();
                 addMarker(info, latLng);
-                double temp = info.getMain().getTemp();
-                Toast.makeText(MainActivity.this, "Temperature: " + temp + "°C", Toast.LENGTH_SHORT).show();
+//                double temp = info.getMain().getTemp();
+//                Toast.makeText(MainActivity.this, "Temperature: " + temp + "°C", Toast.LENGTH_SHORT).show();
             }
 
             @Override

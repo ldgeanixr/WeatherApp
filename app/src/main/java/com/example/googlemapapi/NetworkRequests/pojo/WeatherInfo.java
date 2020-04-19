@@ -14,7 +14,7 @@ public class WeatherInfo {
 
     public WeatherInfo(MainObject main, WeatherObject weather){
         this.main = main;
-        this.weather = new WeatherObject[0];
+        this.weather = new WeatherObject[1];
         this.weather[0] = weather;
     }
 
